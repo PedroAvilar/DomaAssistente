@@ -23,6 +23,8 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.doma.assistente.audio.getAudioOutputDeviceNames
 import com.doma.assistente.audio.AudioDeviceReceiver
+import com.doma.assistente.emergency.EmergencyHelper
+import com.doma.assistente.sensors.MotionDetector
 import com.doma.assistente.tts.TextToSpeechHelper
 import com.doma.assistente.voice.SpeechRecognitionHelper
 import com.doma.assistente.voice.VoiceCommandProcessor
@@ -55,16 +57,27 @@ class MainActivity : ComponentActivity() {
                 }
                 val deviceNames = remember { mutableStateListOf<String>() }
                 val hasNotificationPermission = remember { mutableStateOf(false) }
+                val emergencyHelper = remember { EmergencyHelper(context) }
+                val processor = remember { VoiceCommandProcessor(ttsHelper, emergencyHelper) }
+                val motionDetector = remember { MotionDetector(context, ttsHelper, processor, emergencyHelper) }
+                val speechHelper = remember {
+                    SpeechRecognitionHelper(
+                        context = context,
+                        onCommandRecognized = {command -> processor.process(command)},
+                        onError = {error -> ttsHelper.speak(error)}
+                    )
+                }
 
                 //Função para atualizar os dispositivos conectados
                 fun updateDeviceList() {
                     deviceNames.clear()
-                    deviceNames.addAll(getAudioOutputDeviceNames(this))
+                    deviceNames.addAll(getAudioOutputDeviceNames(context))
                 }
 
                 //Verifica permissão ao iniciar
                 LaunchedEffect(Unit) {
                     updateDeviceList()
+                    motionDetector.start()
                     val granted = isNotificationPermissionGranted(context)
                     hasNotificationPermission.value = granted
 
@@ -92,6 +105,7 @@ class MainActivity : ComponentActivity() {
                     onDispose {
                         unregisterReceiver(receiver)
                         ttsHelper.shutdown()
+                        motionDetector.stop()
                     }
                 }
 
@@ -107,12 +121,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             } else {
                                 ttsHelper.speak("Diga o seu comando.")
-                                val processor = VoiceCommandProcessor(ttsHelper)
-                                val speechHelper = SpeechRecognitionHelper(
-                                    context = context,
-                                    onCommandRecognized = {command -> processor.process(command)},
-                                    onError = {error -> ttsHelper.speak(error)}
-                                )
                                 speechHelper.startListening()
                             }
                         }
