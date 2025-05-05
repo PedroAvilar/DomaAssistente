@@ -17,6 +17,15 @@ class NotificationListenerService : NotificationListenerService() {
         }
     }
 
+    //Armazena as últimas notificações em uma lista
+    companion object {
+        private val notificationTexts = mutableListOf<String>()
+
+        fun getLastNotifications(limit: Int = 3): List<String> {
+            return notificationTexts.takeLast(limit)
+        }
+    }
+
     //Lê em voz alta o conteúdo da notificação recebida
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val extras = sbn.notification.extras

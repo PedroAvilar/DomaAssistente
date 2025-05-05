@@ -24,6 +24,8 @@ import androidx.wear.compose.material.Text
 import com.doma.assistente.audio.getAudioOutputDeviceNames
 import com.doma.assistente.audio.AudioDeviceReceiver
 import com.doma.assistente.tts.TextToSpeechHelper
+import com.doma.assistente.voice.SpeechRecognitionHelper
+import com.doma.assistente.voice.VoiceCommandProcessor
 
 //Função para verificar se a permissão de notificação está ativa
 private fun isNotificationPermissionGranted(context: Context): Boolean {
@@ -103,6 +105,15 @@ class MainActivity : ComponentActivity() {
                                 context.startActivity(
                                     Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                                 )
+                            } else {
+                                ttsHelper.speak("Diga o seu comando.")
+                                val processor = VoiceCommandProcessor(ttsHelper)
+                                val speechHelper = SpeechRecognitionHelper(
+                                    context = context,
+                                    onCommandRecognized = {command -> processor.process(command)},
+                                    onError = {error -> ttsHelper.speak(error)}
+                                )
+                                speechHelper.startListening()
                             }
                         }
                 ) {
