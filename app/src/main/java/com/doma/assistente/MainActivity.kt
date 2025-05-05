@@ -28,7 +28,13 @@ class MainActivity : ComponentActivity() {
         //Conteúdo da interface
         setContent {
             MaterialTheme {
-                val ttsHelper = remember { TextToSpeechHelper(this) }
+                val ttsHelper = remember {
+                    TextToSpeechHelper(
+                        context = this,
+                        //Callback chamado quando o TTS está pronto
+                        onTtsReady = { }
+                    )
+                }
                 val deviceNames = remember { mutableStateListOf<String>() }
 
                 //Atualiza e fala ao detectar mudanças nos dispositivos
@@ -47,6 +53,7 @@ class MainActivity : ComponentActivity() {
                 //Atualiza ao iniciar
                 LaunchedEffect(Unit) {
                     updateDeviceList()
+                    ttsHelper.speak("Doma Assistente iniciado.")
                 }
 
                 //Registra o receiver para ouvir alterações
