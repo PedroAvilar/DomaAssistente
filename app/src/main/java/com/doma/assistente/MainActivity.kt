@@ -18,8 +18,9 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.foundation.lazy.items
 import com.doma.assistente.audio.getAudioOutputDeviceNames
 import com.doma.assistente.audio.AudioDeviceReceiver
+import com.doma.assistente.tts.TextToSpeechHelper
 
-//Classe para obter as saídas de áudio
+//Classe principal que exibe dispositivos e leitura da tela
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,7 +28,15 @@ class MainActivity : ComponentActivity() {
         //Conteúdo da interface
         setContent {
             MaterialTheme {
-                val deviceNames = remember {mutableStateListOf<String>()}
+                val ttsHelper = remember { TextToSpeechHelper(this) }
+                val deviceNames = remember { mutableStateListOf<String>() }
+
+                //Atualiza e fala ao detectar mudanças nos dispositivos
+                LaunchedEffect(deviceNames.size) {
+                    if (deviceNames.isNotEmpty()) {
+                        ttsHelper.speak("Foram encontrados ${deviceNames.size} dispositivos de saída de áudio.")
+                    }
+                }
 
                 //Função para atualizar os dispositivos conectados
                 fun updateDeviceList() {
@@ -45,8 +54,11 @@ class MainActivity : ComponentActivity() {
                     val receiver = AudioDeviceReceiver {updateDeviceList()}
                     val filter = receiver.getIntentFilter()
                     registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+
+                    //Libera ao sair
                     onDispose {
                         unregisterReceiver(receiver)
+                        ttsHelper.shutdown()
                     }
                 }
 
