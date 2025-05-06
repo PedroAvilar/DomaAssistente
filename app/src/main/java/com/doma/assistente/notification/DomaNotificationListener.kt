@@ -5,7 +5,7 @@ import android.service.notification.StatusBarNotification
 import com.doma.assistente.tts.TextToSpeechHelper
 
 //Classe que acptura as notificações, processa e envia ao TTS
-class NotificationListenerService : NotificationListenerService() {
+class DomaNotificationListener : NotificationListenerService() {
 
     private var ttsHelper: TextToSpeechHelper? = null
 

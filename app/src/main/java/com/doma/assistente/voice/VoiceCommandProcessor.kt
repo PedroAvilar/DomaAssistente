@@ -1,7 +1,7 @@
 package com.doma.assistente.voice
 
 import com.doma.assistente.emergency.EmergencyHelper
-import com.doma.assistente.notification.NotificationListenerService
+import com.doma.assistente.notification.DomaNotificationListener
 import com.doma.assistente.tts.TextToSpeechHelper
 
 //Classe que processa os comandos de voz e executa ações
@@ -19,7 +19,7 @@ class VoiceCommandProcessor(
             }
             //Comando de mensagens
             command.contains("mensagem", ignoreCase = true) || command.contains("mensagens", ignoreCase = true) -> {
-                val ultimas = NotificationListenerService.getLastNotifications(3)
+                val ultimas = DomaNotificationListener.getLastNotifications(3)
                 if (ultimas.isEmpty()) {
                     ttsHelper.speak("Não há mensagens recentes.")
                 } else {
