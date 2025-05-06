@@ -24,9 +24,12 @@ class MotionDetector (
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private var accelerometer: Sensor? = null
 
-    private val shakeThreshold = 25f  //Valor mínimo para considerar como movimento brusco
+    private val shakeThreshold = 60f  //Valor mínimo para considerar como movimento brusco
     private var lastAlertTime = 0L    //Armazena o timestamp do último alerta
     private val cooldownMs = 5000     //Tempo de espera entre alertas
+
+    //Armazena as últimas leituras de aceleração
+    private val accelValues = mutableListOf<Float>()
 
     //Inicia o detectar e registra o sensor
     fun start() {
@@ -51,10 +54,16 @@ class MotionDetector (
             //Calcula a magnitude da aceleração total
             val acceleration = sqrt(x * x + y * y + z * z)
 
+            //Armazena os últimos 10 valores de aceleração
+            accelValues.add(acceleration)
+            if (accelValues.size > 10) accelValues.removeAt(0)
+
+            //Calcula a média das últimas leituras para suavizar ruídos
+            val avgAcceleration = accelValues.average().toFloat()
             val currentTime = System.currentTimeMillis()
 
             //Verifica se o movimento já passou o tempo de espera
-            if (acceleration > shakeThreshold && currentTime - lastAlertTime > cooldownMs) {
+            if (avgAcceleration > shakeThreshold && currentTime - lastAlertTime > cooldownMs) {
                 lastAlertTime = currentTime
 
                 //Alerta o usuário do movimento
