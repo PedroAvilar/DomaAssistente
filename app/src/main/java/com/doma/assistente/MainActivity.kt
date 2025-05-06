@@ -22,6 +22,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.material.Text
@@ -124,6 +128,19 @@ fun MainScreen(ttsHelper: TextToSpeechHelper) {
         if (!audioPermissionGranted) {
             ttsHelper.speak("Solicitando permissão de microfone.")
             requestAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+    //Observa o retorno ao app e revalida a permissão de notificação
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasNotificationPermission = isNotificationPermissionGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
     //Registra mudanças nos dispositivos de áudio
