@@ -1,5 +1,6 @@
 package com.doma.assistente
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -116,9 +117,22 @@ class MainActivity : ComponentActivity() {
                         .clickable{
                             if (!hasNotificationPermission.value) {
                                 ttsHelper.speak("Abrindo configurações para conceder permissão de notificação.")
-                                context.startActivity(
-                                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                )
+                                try {
+                                    val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    val packageManager = context.packageManager
+                                    //Verifica se existe alguma atividade capaz de lidar com a intent
+                                    val activities = packageManager.queryIntentActivities(intent, 0)
+                                    if (activities.isNotEmpty()) {
+                                        context.startActivity(intent)
+                                    } else {
+                                        ttsHelper.speak("Não foi possível abrir as configurações de notificação no seu dispositivo.")
+                                        Log.e("MainActivity", "Nenhuma activity encontrada para tratar a intent de configurações de notificação.")
+                                    }
+                                } catch (e: ActivityNotFoundException) {
+                                    //Caso a intent falhe
+                                    ttsHelper.speak("Não foi possível abrir as configurações de notificações.")
+                                    Log.e("MainActivity", "Erro ao abrir as configurações de notificações: ${e.message}")
+                                }
                             } else {
                                 ttsHelper.speak("Diga o seu comando.")
                                 speechHelper.startListening()
