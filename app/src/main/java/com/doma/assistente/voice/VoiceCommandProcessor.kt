@@ -1,11 +1,14 @@
 package com.doma.assistente.voice
 
+import android.content.Context
+import com.doma.assistente.audio.getAudioOutputDeviceNames
 import com.doma.assistente.emergency.EmergencyHelper
 import com.doma.assistente.notification.DomaNotificationListener
 import com.doma.assistente.tts.TextToSpeechHelper
 
 //Classe que processa os comandos de voz e executa ações
 class VoiceCommandProcessor(
+    private val context: Context,
     private val ttsHelper: TextToSpeechHelper,
     private val emergencyHelper: EmergencyHelper
 ) {
@@ -15,7 +18,7 @@ class VoiceCommandProcessor(
         when {
             //Comando de ajuda
             command.contains("ajuda", ignoreCase = true) -> {
-                ttsHelper.speak("Você pode dizer: mensagens, status ou ajuda.")
+                ttsHelper.speak("Você pode dizer: dispositivos, mensagens, status ou ajuda.")
             }
             //Comando de mensagens
             command.contains("mensagem", ignoreCase = true) || command.contains("mensagens", ignoreCase = true) -> {
@@ -33,7 +36,7 @@ class VoiceCommandProcessor(
             }
 
             //Queda detectada e esperando resposta
-            isAwaitingFallResponse && command.contains("sim", ignoreCase = true) -> {
+            isAwaitingFallResponse && command.contains("estou", ignoreCase = true) -> {
                 isAwaitingFallResponse = false
                 ttsHelper.speak("Que bom que está tudo bem.")
             }
@@ -49,6 +52,18 @@ class VoiceCommandProcessor(
                     ttsHelper.speak("Fim do alarme de emergência.")
                 } else {
                     ttsHelper.speak("Nenhum alarme está tocando.")
+                }
+            }
+            //Comando para listar dispositivos
+            command.contains("dispositivo", ignoreCase = true) -> {
+                val names = getAudioOutputDeviceNames(context)
+                if (names.isEmpty()) {
+                    ttsHelper.speak("Nenhum dispositivo de saída encontrado.")
+                } else {
+                    ttsHelper.speak("Foram encontrados ${names.size} dispositivos:")
+                    names.forEach { deviceName ->
+                        ttsHelper.speakAdd(deviceName)
+                    }
                 }
             }
 

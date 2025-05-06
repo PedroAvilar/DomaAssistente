@@ -26,7 +26,7 @@ class MotionDetector (
 
     private val shakeThreshold = 60f  //Valor mínimo para considerar como movimento brusco
     private var lastAlertTime = 0L    //Armazena o timestamp do último alerta
-    private val cooldownMs = 5000     //Tempo de espera entre alertas
+    private val cooldownMs = 30000     //Tempo de espera entre alertas
 
     //Armazena as últimas leituras de aceleração
     private val accelValues = mutableListOf<Float>()
@@ -62,18 +62,15 @@ class MotionDetector (
             val avgAcceleration = accelValues.average().toFloat()
             val currentTime = System.currentTimeMillis()
 
-            //Verifica se o movimento já passou o tempo de espera
+            //Caso de queda confirmada
             if (avgAcceleration > shakeThreshold && currentTime - lastAlertTime > cooldownMs) {
                 lastAlertTime = currentTime
 
-                //Alerta o usuário do movimento
-                ttsHelper.speak("Movimento brusco detectado. Você está bem?")
-                voiceCommandProcessor.isAwaitingFallResponse = true
-
-                //Inicia reconhecimento após 2s
-                Handler(Looper.getMainLooper()).postDelayed({
+                //Alerta o usuário e chama o tempo de resposta
+                ttsHelper.speak("Movimento brusco detectado. Você está bem?") {
+                    voiceCommandProcessor.isAwaitingFallResponse = true
                     startListeningWithTimeout()
-                }, 2000)
+                }
             }
         }
     }
@@ -81,14 +78,16 @@ class MotionDetector (
     //Método obrigatório, não utilizado
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    //Função para o reconhecimento após 2s
+    //Função para o reconhecimento com tempo de resposta
     private fun startListeningWithTimeout() {
         val speechHelper = SpeechRecognitionHelper(
             context = context,
             onCommandRecognized = { command -> voiceCommandProcessor.process(command) },
             onError = { error -> ttsHelper.speak(error) }
         )
-        speechHelper.startListening()
+        Handler(Looper.getMainLooper()).post {
+            speechHelper.startListening()
+        }
 
         Handler(Looper.getMainLooper()).postDelayed({
             if (voiceCommandProcessor.isAwaitingFallResponse) {
@@ -96,6 +95,6 @@ class MotionDetector (
                 voiceCommandProcessor.isAwaitingFallResponse = false
                 emergencyHelper.playAlarm()
             }
-        }, 10000)
+        }, 15000)
     }
 }

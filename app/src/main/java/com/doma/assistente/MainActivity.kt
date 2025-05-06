@@ -1,26 +1,29 @@
 package com.doma.assistente
 
-import android.content.ActivityNotFoundException
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
-import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.doma.assistente.audio.getAudioOutputDeviceNames
 import com.doma.assistente.audio.AudioDeviceReceiver
@@ -40,126 +43,140 @@ private fun isNotificationPermissionGranted(context: Context): Boolean {
     return enabledListeners != null && enabledListeners.contains(packageName)
 }
 
-//Classe principal que exibe dispositivos e leitura da tela
+//Classe para a atividade principal do app
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        //Conteúdo da interface
         setContent {
-            MaterialTheme {
-                val context = LocalContext.current
-                val ttsHelper = remember {
-                    TextToSpeechHelper(
-                        context = context,
-                        //Callback chamado quando o TTS está pronto
-                        onTtsReady = { }
-                    )
-                }
-                val deviceNames = remember { mutableStateListOf<String>() }
-                val hasNotificationPermission = remember { mutableStateOf(false) }
-                val emergencyHelper = remember { EmergencyHelper(context) }
-                val processor = remember { VoiceCommandProcessor(ttsHelper, emergencyHelper) }
-                val motionDetector = remember { MotionDetector(context, ttsHelper, processor, emergencyHelper) }
-                val speechHelper = remember {
-                    SpeechRecognitionHelper(
-                        context = context,
-                        onCommandRecognized = {command -> processor.process(command)},
-                        onError = {error -> ttsHelper.speak(error)}
-                    )
-                }
+            AppRoot()
+        }
+    }
+}
 
-                //Função para atualizar os dispositivos conectados
-                fun updateDeviceList() {
-                    deviceNames.clear()
-                    deviceNames.addAll(getAudioOutputDeviceNames(context))
-                }
+//Raiz que aguarda o TTS ser inicializado antes de carregar a tela principal
+@Composable
+fun AppRoot() {
+    val context = LocalContext.current
+    var ttsReady by remember { mutableStateOf(false) }
+    //Inicia o TTS e atualiza o estado
+    val ttsHelper = remember {
+        TextToSpeechHelper(context) {
+            ttsReady = true
+        }
+    }
+    if (!ttsReady) {
+        Box(Modifier.fillMaxSize()) {
+        }
+        return
+    }
+    MainScreen(ttsHelper)
+}
 
-                //Verifica permissão ao iniciar
-                LaunchedEffect(Unit) {
-                    updateDeviceList()
-                    motionDetector.start()
-                    val granted = isNotificationPermissionGranted(context)
-                    hasNotificationPermission.value = granted
+//Tela principal do app
+@Composable
+fun MainScreen(ttsHelper: TextToSpeechHelper) {
+    val context = LocalContext.current
 
-                    ttsHelper.speak("Doma Assistente iniciado.")
-
-                    if (!granted) {
-                        ttsHelper.speak("Permissão de notificação não concedida. Toque na tela para ativar.")
+    //Inicia os módulos de emergência, comandos de voz e sensores
+    val emergencyHelper = remember { EmergencyHelper(context) }
+    val processor = remember { VoiceCommandProcessor(context, ttsHelper, emergencyHelper) }
+    val motionDetector = remember { MotionDetector(context, ttsHelper, processor, emergencyHelper) }
+    val speechHelper = remember {
+        SpeechRecognitionHelper(
+            context = context,
+            onCommandRecognized = { cmd -> processor.process(cmd) },
+            onError = { err -> ttsHelper.speak(err) }
+        )
+    }
+    //Dispositivos de áudio
+    val deviceNames = remember { mutableStateListOf<String>() }
+    fun updateDeviceList() {
+        deviceNames.clear()
+        deviceNames.addAll(getAudioOutputDeviceNames(context))
+    }
+    //Permissões
+    var hasNotificationPermission by remember { mutableStateOf(false) }
+    var audioPermissionGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val requestAudioPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        audioPermissionGranted = granted
+        if (granted) {
+            ttsHelper.speak("Permissão de microfone concedida.")
+        } else {
+            ttsHelper.speak("Permissão de microfone negada.")
+        }
+    }
+    //Inicia os serviços
+    LaunchedEffect(Unit) {
+        updateDeviceList()
+        motionDetector.start()
+        hasNotificationPermission = isNotificationPermissionGranted(context)
+        ttsHelper.speak("Doma Assistente iniciado.")
+        if (!hasNotificationPermission) {
+            ttsHelper.speak("Permissão de notificação não concedida. Toque para ativar.")
+        }
+        if (!audioPermissionGranted) {
+            ttsHelper.speak("Solicitando permissão de microfone.")
+            requestAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+    //Registra mudanças nos dispositivos de áudio
+    DisposableEffect(Unit) {
+        val receiver = AudioDeviceReceiver { updateDeviceList() }
+        val filter = receiver.getIntentFilter()
+        context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        onDispose {
+            context.unregisterReceiver(receiver)
+            ttsHelper.shutdown()
+            motionDetector.stop()
+        }
+    }
+    //Área principal da interface
+    Box(
+        Modifier
+            .fillMaxSize()
+            .clickable {
+                //Abre configurações de permissão de notificação
+                if (!hasNotificationPermission) {
+                    ttsHelper.speak("Abrindo configurações de notificação.")
+                    try {
+                        context.startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (e: Exception) {
+                        ttsHelper.speak("Não foi possível abrir as configurações")
                     }
-                }
-
-                //Atualiza e fala ao detectar mudanças nos dispositivos
-                LaunchedEffect(deviceNames.size) {
-                    if (deviceNames.isNotEmpty()) {
-                        ttsHelper.speak("Foram encontrados ${deviceNames.size} dispositivos de saída de áudio.")
-                    }
-                }
-
-                //Registra o receiver para ouvir alterações
-                DisposableEffect(Unit) {
-                    val receiver = AudioDeviceReceiver {updateDeviceList()}
-                    val filter = receiver.getIntentFilter()
-                    registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-
-                    //Libera ao sair
-                    onDispose {
-                        unregisterReceiver(receiver)
-                        ttsHelper.shutdown()
-                        motionDetector.stop()
-                    }
-                }
-
-                //Exibe conteúdo com interação por toque para acessibilidade
-                Box (
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable{
-                            if (!hasNotificationPermission.value) {
-                                ttsHelper.speak("Abrindo configurações para conceder permissão de notificação.")
-                                try {
-                                    val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                    val packageManager = context.packageManager
-                                    //Verifica se existe alguma atividade capaz de lidar com a intent
-                                    val activities = packageManager.queryIntentActivities(intent, 0)
-                                    if (activities.isNotEmpty()) {
-                                        context.startActivity(intent)
-                                    } else {
-                                        ttsHelper.speak("Não foi possível abrir as configurações de notificação no seu dispositivo.")
-                                        Log.e("MainActivity", "Nenhuma activity encontrada para tratar a intent de configurações de notificação.")
-                                    }
-                                } catch (e: ActivityNotFoundException) {
-                                    //Caso a intent falhe
-                                    ttsHelper.speak("Não foi possível abrir as configurações de notificações.")
-                                    Log.e("MainActivity", "Erro ao abrir as configurações de notificações: ${e.message}")
-                                }
-                            } else {
-                                ttsHelper.speak("Diga o seu comando.")
+                } else {
+                    if (audioPermissionGranted) {
+                        ttsHelper.speak("Diga o comando.") {
+                            Handler(Looper.getMainLooper()).post {
                                 speechHelper.startListening()
                             }
                         }
-                ) {
-
-                    //Exibe a lista
-                    ScalingLazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        contentPadding = PaddingValues(vertical = 20.dp)
-                    ) {
-                        //Título da lista
-                        item {
-                            Text(
-                                text = "Dispositivos de saída:",
-                                fontSize = 16.sp
-                            )
-                        }
-                        //Cada nome de dispositivo como item da lista
-                        items(deviceNames) { name ->
-                            Text("• $name", fontSize = 14.sp)
-                        }
-                        Log.d("MainDeviceNames", "Dispositivos detectados: $deviceNames")
+                    } else {
+                        ttsHelper.speak("Permissão de microfone não concedida.")
                     }
                 }
+            }
+    ) {
+        //Lista de dispositivos de aúdio
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            contentPadding = PaddingValues(vertical = 20.dp)
+        ) {
+            item {
+                Text("Dispositivos de saída:", fontSize = 16.sp)
+            }
+            items(deviceNames) { name ->
+                Text("• $name", fontSize = 14.sp)
             }
         }
     }
