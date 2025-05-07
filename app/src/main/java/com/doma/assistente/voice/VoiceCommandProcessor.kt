@@ -27,7 +27,9 @@ class VoiceCommandProcessor(
                     ttsHelper.speak("Não há mensagens recentes.")
                 } else {
                     ttsHelper.speak("Lendo suas últimas mensagens.")
-                    ultimas.forEach { ttsHelper.speak(it) }
+                    ultimas.forEach { mensagem ->
+                        ttsHelper.speakAdd(mensagem)
+                    }
                 }
             }
             //Comando para status
@@ -42,7 +44,7 @@ class VoiceCommandProcessor(
             }
             isAwaitingFallResponse && command.contains("não", ignoreCase = true) -> {
                 isAwaitingFallResponse = false
-                ttsHelper.speak("Iniciando alarme de emergência.")
+                ttsHelper.speak("Alarme de emergência.")
                 emergencyHelper.playAlarm()
             }
             //Comando para parar alarme

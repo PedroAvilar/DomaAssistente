@@ -4,7 +4,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.doma.assistente.tts.TextToSpeechHelper
 
-//Classe que acptura as notificações, processa e envia ao TTS
+//Classe que captura as notificações, processa e envia ao TTS
 class DomaNotificationListener : NotificationListenerService() {
 
     private var ttsHelper: TextToSpeechHelper? = null
@@ -21,8 +21,10 @@ class DomaNotificationListener : NotificationListenerService() {
     companion object {
         private val notificationTexts = mutableListOf<String>()
 
-        fun getLastNotifications(limit: Int = 3): List<String> {
-            return notificationTexts.takeLast(limit)
+        fun getLastNotifications(limit: Int = 5): List<String> {
+            return synchronized(notificationTexts) {
+                notificationTexts.takeLast(limit)
+            }
         }
     }
 
@@ -35,6 +37,13 @@ class DomaNotificationListener : NotificationListenerService() {
         //Evita notificações vazias ou irrelevantes
         if (title.isNotBlank() || text.isNotBlank()) {
             val message = "$title: $text"
+            //Armazena a notificação na lista de últimas
+            synchronized (notificationTexts){
+                notificationTexts.add(message)
+                if (notificationTexts.size > 10) {
+                    notificationTexts.removeAt(0)
+                }
+            }
             ttsHelper?.speak(message)
         }
     }

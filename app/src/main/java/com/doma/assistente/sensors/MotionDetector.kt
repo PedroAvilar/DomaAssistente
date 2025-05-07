@@ -26,7 +26,7 @@ class MotionDetector (
 
     private val shakeThreshold = 60f  //Valor mínimo para considerar como movimento brusco
     private var lastAlertTime = 0L    //Armazena o timestamp do último alerta
-    private val cooldownMs = 30000     //Tempo de espera entre alertas
+    private val cooldownMs = 30000    //Tempo de espera entre alertas
 
     //Armazena as últimas leituras de aceleração
     private val accelValues = mutableListOf<Float>()

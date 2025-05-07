@@ -27,7 +27,7 @@ class TextToSpeechHelper(context: Context, private val onTtsReady: () -> Unit) :
         }
     }
 
-    //Fala o texto passado, sem callback
+    //Fala o texto passado, frase única
     fun speak(text: String) {
         if (isReady) {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SIMPLE")
@@ -58,7 +58,7 @@ class TextToSpeechHelper(context: Context, private val onTtsReady: () -> Unit) :
                     onDone()
                 }
             }
-            override fun onError(utteranceId: String) { /* opcional */ }
+            override fun onError(utteranceId: String) { }
             override fun onStart(utteranceId: String) { }
         })
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)

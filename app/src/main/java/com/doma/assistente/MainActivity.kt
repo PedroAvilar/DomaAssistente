@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
@@ -24,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
@@ -37,7 +37,7 @@ import com.doma.assistente.tts.TextToSpeechHelper
 import com.doma.assistente.voice.SpeechRecognitionHelper
 import com.doma.assistente.voice.VoiceCommandProcessor
 
-//Função para verificar se a permissão de notificação está ativa
+//Função para verificar se a permissão de notificação está ativada
 private fun isNotificationPermissionGranted(context: Context): Boolean {
     val enabledListeners = Settings.Secure.getString(
         context.contentResolver,
@@ -57,23 +57,48 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-//Raiz que aguarda o TTS ser inicializado antes de carregar a tela principal
+//Raiz que inicia o TTS antes de carregar a tela principal
 @Composable
 fun AppRoot() {
     val context = LocalContext.current
     var ttsReady by remember { mutableStateOf(false) }
-    //Inicia o TTS e atualiza o estado
+    var ttsFailed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(10000)
+        if (!ttsReady) {
+            ttsFailed = true
+        }
+    }
+    //Inicia o TTS
     val ttsHelper = remember {
         TextToSpeechHelper(context) {
             ttsReady = true
         }
     }
-    if (!ttsReady) {
-        Box(Modifier.fillMaxSize()) {
+    when {
+        //Quando falha
+        ttsFailed -> {
+            Box(
+                Modifier.fillMaxSize().padding(15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Falha ao iniciar o TTS. Verifique permissões ou reinicie o app.", fontSize = 16.sp)
+            }
+            return
         }
-        return
+        //Quando ainda não está pronto
+        !ttsReady -> {
+            Box(
+                Modifier.fillMaxSize().padding(15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Aguarde. Tentando iniciar o Text To Speech.", fontSize = 16.sp)
+            }
+            return
+        }
+        else -> MainScreen(ttsHelper)
     }
-    MainScreen(ttsHelper)
 }
 
 //Tela principal do app
@@ -143,15 +168,17 @@ fun MainScreen(ttsHelper: TextToSpeechHelper) {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    //Registra mudanças nos dispositivos de áudio
+    //Registra mudanças
     DisposableEffect(Unit) {
         val receiver = AudioDeviceReceiver { updateDeviceList() }
         val filter = receiver.getIntentFilter()
         context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        //Libera recursos
         onDispose {
             context.unregisterReceiver(receiver)
             ttsHelper.shutdown()
             motionDetector.stop()
+            speechHelper.stop()
         }
     }
     //Área principal da interface
